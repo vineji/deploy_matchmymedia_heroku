@@ -1,0 +1,159 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login</title>
+    </head>
+    <body>
+        <a href="http://127.0.0.1:8080" class="main-page-btn">Main Page</a>
+        <form class="login-container"  method="post">
+            {% csrf_token %}
+            <h1 class="login-header">Login</h1>
+            <div class="input-container">
+                <input class="inputs"  type="text" id="username" name="username" placeholder="Enter Username" required>          
+                <input class="inputs"  type="password" id="password" name="password" placeholder="Enter Password" required>
+            </div>
+            <div class="login-btn-container">
+                <button type="submit" class="login-btn">Login</button>
+                <a class="signup-btn" href="http://127.0.0.1:8000/signup/">Sign Up</a>
+            </div>
+            {% if error %}
+            <script>
+                alert("{{ error }}");
+            </script>
+            {% endif %}
+        </form>
+
+    </body>
+</html>
+<style>
+    body{
+        font-family: Avenir, Helvetica, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        height: 100vh;
+        background-color: rgba(247, 244, 244, 0.944);
+    }
+    .main-page-btn{
+        all: unset;
+        margin-top: 2rem;
+        margin-right: 3rem;
+        align-self: flex-end;
+        justify-self: flex-start;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #1B1B1E;
+        height: 3.3rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        width: 6.5rem;
+        font-size: 1.2rem;
+        font-weight: 500;
+        border-radius: 0.8rem;
+        background-color: #FBFFFE;
+        border: 3px solid #1B1B1E;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .main-page-btn:hover{
+        background-color: #1B1B1E;
+        color: #FBFFFE;
+        transition: 0.3s ease;
+    }
+    .login-header{
+        align-self: flex-start;
+        justify-self: flex-start;
+        font-size: 3.5rem;
+        margin-left: 0.5rem;
+    }
+    .login-container{
+        margin-top: 5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        background-color: #FBFFFE;
+        height: 23rem;
+        width: 26.5rem;
+        border-radius: 2rem;
+        padding: 3.5rem;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+    
+    .inputs{
+        all: unset;
+        width: 24rem;
+        height: 3rem;
+        font-size: 1.3rem;
+        border-radius: 0.7rem;
+        border: 3.5px solid #1B1B1E;
+        padding-left: 0.6rem;
+        color: #1B1B1E;
+    }
+    .inputs::placeholder{
+        color: #1B1B1E;
+    }
+    .input-container{
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .login-btn{
+        all: unset;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #1B1B1E;
+        height: 3.8rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        width: 6.5rem;
+        font-size: 1.7rem;
+        font-weight: 500;
+        border-radius: 0.8rem;
+        background-color: #41ceaa;
+    }
+    .login-btn:hover{
+        background-color: rgba(75, 234, 194, 0.97);
+        transition: 0.2s ease;
+    }
+
+    .signup-btn{
+        all: unset;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #1B1B1E;
+        height: 3.8rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        width: 8.3rem;
+        font-size: 1.7rem;
+        font-weight: 500;
+        border-radius: 0.8rem;
+        background-color: #FAA916;
+
+    }
+    .signup-btn:hover{
+        background-color: #faaa16c2;
+        transition: 0.2s ease;
+    }
+    .login-btn-container{
+        margin-top: 3rem;
+        display: flex;
+        flex-direction: row;
+        width: 25rem;
+        justify-content: space-between;
+    }
+
+    
+</style>

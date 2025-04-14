@@ -1,0 +1,191 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login</title>
+    </head>
+    <body>
+
+
+        {% if error %}
+            <p>{{error}}</p>
+        {% endif %}
+        <a href="http://127.0.0.1:8080" class="main-page-btn">Main Page</a>
+        <form method="post" class="signup-container">
+            {% csrf_token %}
+            <h1 class="signup-header">Sign Up</h1>
+            <div class="input-container"> 
+                <input class="inputs" type="text" id="username" name="username" placeholder="Enter Username" required>
+                <div class="input-container-div">
+                    <input class="input_online_id" type="text" id="online_id" name="online_id" placeholder="Enter Online ID" value="{{ form.online_id.value|default:'' }}" required>
+                    <input class="input_DOB" type="date" id="DOB" name="DOB" placeholder="Enter DOB" value="{{ form.DOB.value|default:'' }}"  max="2020-01-01" title="Date of Birth" required>
+                </div>
+                <input class="inputs" type="password" id="password1" name="password1" placeholder="Enter Password" required>
+                <input class="inputs" type="password" id="password2" name="password2" placeholder="Retype Password" required>
+            </div>
+            <div class="signup-btn-container">
+                <button type="submit" class="signup-btn">Sign Up</button>
+                <a href="http://127.0.0.1:8000/login/" class="login-btn">Have an account?</a>
+            </div>
+        </form>
+
+    </body>
+</html>
+<style>
+    body{
+        font-family: Avenir, Helvetica, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        height: 100vh;
+        background-color: rgba(247, 244, 244, 0.944);
+    }
+    .signup-header{
+        align-self: flex-start;
+        font-size: 2.4rem;
+        margin-top: 0;
+        margin-left: 0.7rem;
+    }
+    .signup-container{
+        width: 26.5rem;
+        height: 30rem;
+        background-color: #FBFFFE;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 3.5rem;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        border-radius: 2rem;
+    }
+    .main-page-btn{
+        all: unset;
+        margin-top: 2rem;
+        margin-right: 3rem;
+        align-self: flex-end;
+        justify-self: flex-start;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #1B1B1E;
+        height: 3.3rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        width: 6.5rem;
+        font-size: 1.2rem;
+        font-weight: 500;
+        border-radius: 0.8rem;
+        background-color: #FBFFFE;
+        border: 3px solid #1B1B1E;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .main-page-btn:hover{
+        background-color: #1B1B1E;
+        color: #FBFFFE;
+        transition: 0.3s ease;
+    }
+    .input-container{
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+    }
+
+    .input-container-div{
+        display: flex;
+        flex-direction: row;
+        width: 25rem;
+        justify-content: space-between;
+    }
+
+    .input_online_id{
+        all: unset;
+        width: 14.3rem;
+        height: 3rem;
+        font-size: 1.3rem;
+        border-radius: 0.7rem;
+        border: 3.5px solid #1B1B1E;
+        padding-left: 0.6rem;
+        color: #1B1B1E;
+    }
+    .input_DOB{
+        all: unset;
+        width: 8.5rem;
+        height: 3rem;
+        font-size: 1.3rem;
+        border-radius: 0.7rem;
+        border: 3.5px solid #1B1B1E;
+        color: #1B1B1E;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        margin-left: 0.5rem;
+    }
+
+    .inputs{
+        all: unset;
+        width: 24rem;
+        height: 3rem;
+        font-size: 1.3rem;
+        border-radius: 0.7rem;
+        border: 3.5px solid #1B1B1E;
+        padding-left: 0.6rem;
+        color: #1B1B1E;
+    }
+    .inputs::placeholder{
+        color: #1B1B1E;
+    }
+    .signup-btn{
+        all: unset;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #1B1B1E;
+        height: 3.3rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        width: 6.5rem;
+        font-size: 1.4rem;
+        font-weight: 500;
+        border-radius: 0.8rem;
+        background-color: #FAA916;
+
+    }
+    .signup-btn:hover{
+        background-color: #faaa16c2;
+        transition: 0.2s ease;
+    }
+    .signup-btn-container{
+        margin-top: 2rem;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        width: 25rem;
+    }
+
+    .login-btn{
+        all: unset;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: #1B1B1E;
+        height: 3.3rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+        width: 12rem;
+        font-size: 1.4rem;
+        font-weight: 500;
+        border-radius: 0.8rem;
+        background-color: #41ceaa;
+    }
+    .login-btn:hover{
+        background-color: rgba(75, 234, 194, 0.97);
+        transition: 0.2s ease;
+    }
+</style>
