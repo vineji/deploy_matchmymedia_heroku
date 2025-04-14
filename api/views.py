@@ -29,16 +29,40 @@ from django.core.paginator import Paginator, Page
 
 from django.db.models import Q
 
+from django.conf import settings
+
 
 load_dotenv()
 
 
 def main_spa(request):
+    # Debug output
+    print(f"Template directories: {settings.TEMPLATES[0]['DIRS']}")
+    print(f"Static directories: {settings.STATICFILES_DIRS}")
+    print(f"Static URL: {settings.STATIC_URL}")
+    
+    # List available templates
+    for template_dir in settings.TEMPLATES[0]['DIRS']:
+        if os.path.exists(template_dir):
+            print(f"Templates in {template_dir}: {os.listdir(template_dir)}")
+    
+    # Try to render the template
     try:
         return render(request, 'index.html')
-    except:
-        # If the template is not found in the default location, try the static directory
-        return render(request, 'index.html', {})
+    except Exception as e:
+        print(f"Error rendering template: {str(e)}")
+        # Fall back to a plain HTML response for debugging
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head><title>MatchMyMedia Debug</title></head>
+        <body>
+            <h1>MatchMyMedia Debug Page</h1>
+            <p>Template could not be found. Check the logs for more details.</p>
+        </body>
+        </html>
+        """
+        return HttpResponse(html)
 
 def get_csrf_token(request):
     csrf_token = get_token(request)

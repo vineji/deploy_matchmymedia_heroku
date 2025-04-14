@@ -1,9 +1,11 @@
 from django.urls import path, include, re_path
 from . import views
+from django.shortcuts import render
 
 urlpatterns = [
     re_path("home", views.main_spa),
     path('', views.main_spa, name='main page'),
+    path('debug/', lambda request: render(request, 'debug.html'), name='debug page'),
     path('login/', views.login_view, name='login page'),
     path('logout/',views.logout_view, name='logout'),
     path('csrf/', views.get_csrf_token, name='retrieve csrf token'),

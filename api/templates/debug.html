@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MatchMyMedia Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>MatchMyMedia is Running!</h1>
+    
+    <div class="card">
+        <h2>Static Files Issue</h2>
+        <p>Your application is running but there appears to be an issue with serving static files.</p>
+    </div>
+    
+    <div class="card">
+        <h2>API Endpoints</h2>
+        <ul>
+            <li><a href="/login/">Login</a></li>
+            <li><a href="/genre/">Genres</a></li>
+            <li><a href="/csrf/">Get CSRF Token</a></li>
+        </ul>
+    </div>
+</body>
+</html> 
