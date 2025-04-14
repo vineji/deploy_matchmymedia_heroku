@@ -237,37 +237,53 @@
 </template>
 <script>
 import { useUserStore } from '@/stores/userStore';
+import config from '@/config';
+
 export default{
     name:"DashboardPage",
     data() {
         return{
             user_data: {
-                favourite_genres : []
+                username: "",
+                online_id: "",
+                DOB: "",
+                favourite_genres: [],
+                favourite_books: [],
             },
-            password_form: {},
-            csrfToken: "",
             readUsername: true,
             readOnlineId: true,
             readDOB: true,
+            
             changePassword: false,
+            password_form: {
+                old_password: "",
+                new_password_1: "",
+                new_password_2: ""
+            },
+
             showOldPassword: false,
             showNewPassword1: false,
             showNewPassword2: false,
-            openAddGenre: false,
-            openAddBook: false,
+
             genreList: [],
+            openAddGenre: false,
             newGenreName: "",
+
+            query: "",
+            isLoading: false,
             searchedBooks: [],
-            query: '',
-            currentPage: 1,
             totalPages: 1,
+            currentPage: 1,
+            openAddBook: false,
             showList: true,
-            chosen_book: {},
-            showPageMultiplier: 1,
+            chosen_book: null,
             rating: 0,
-            stars: [1,2,3,4,5],
             hoveredStar: 0,
-            isLoading : false,
+            stars: [1,2,3,4,5],
+            
+            csrfToken: "",
+
+            apiBaseUrl: config.apiBaseUrl
         }
     },
     computed: {
@@ -290,7 +306,7 @@ export default{
     methods: {
         async fetch_csrf_token(){
             try{
-                const response = await fetch("http://127.0.0.1:8000/csrf/",
+                const response = await fetch(`${this.apiBaseUrl}/csrf/`,
                 {    
                     method: "GET",
                     credentials: "include", 
@@ -313,7 +329,7 @@ export default{
         async fetch_user(){
             try{
 
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "GET",
                     headers: {
@@ -347,7 +363,7 @@ export default{
                 this.showPageMultiplier = 1;
             }
             try{
-                const response = await fetch(`http://127.0.0.1:8000/search-book/?title=${this.query}&page=${this.currentPage}`);
+                const response = await fetch(`${this.apiBaseUrl}/search-book/?title=${this.query}&page=${this.currentPage}`);
                 if (!response.ok){
                     throw new Error('Failed to fetch data');
                 }
@@ -365,7 +381,7 @@ export default{
         async logout(){
             try{
 
-                const response = await fetch("http://127.0.0.1:8000/logout/",
+                const response = await fetch(`${this.apiBaseUrl}/logout/`,
                 {    
                     method: "GET",
                     headers: {
@@ -378,7 +394,7 @@ export default{
                     throw new Error('Failed to logout');
                 }
                 this.userStore.clearUser();
-                window.location.href = "http://127.0.0.1:8000/login";
+                window.location.href = `${this.apiBaseUrl}/login`;
 
             }
             catch (error){
@@ -449,7 +465,7 @@ export default{
         async addFavouriteBook(){
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "POST",
                     headers: {
@@ -477,7 +493,7 @@ export default{
         },
         async deleteFavouriteBook(){
             try{
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {
                     method: "DELETE",
                     headers: {
@@ -503,7 +519,7 @@ export default{
         async saveUsername(){
             try{
 
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "PUT",
                     headers: {
@@ -536,7 +552,7 @@ export default{
         async saveOnlineId(){
             try{
 
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "PUT",
                     headers: {
@@ -569,7 +585,7 @@ export default{
         async saveDOB(){
             try{
 
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "PUT",
                     headers: {
@@ -613,7 +629,7 @@ export default{
         },
         async updatePassword(){
             try{
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "POST",
                     headers: {
@@ -666,7 +682,7 @@ export default{
         async deleteGenre(genreName){
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "DELETE",
                     headers: {
@@ -688,7 +704,7 @@ export default{
         async addGenre(genreName){
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/user/",
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
                 {    
                     method: "POST",
                     headers: {
@@ -715,7 +731,7 @@ export default{
             }
 
             try{
-                const response = await fetch("http://127.0.0.1:8000/genre/",
+                const response = await fetch(`${this.apiBaseUrl}/genre/`,
                 {    
                     method: "POST",
                     headers: {
@@ -746,7 +762,7 @@ export default{
         },
         async fetch_genres(){
             try{
-                const response = await fetch("http://127.0.0.1:8000/genre/",
+                const response = await fetch(`${this.apiBaseUrl}/genre/`,
                 {    
                     method: "GET",
                     headers: {
@@ -770,7 +786,7 @@ export default{
         async fetch_book_rating(){
             try
             {
-                const response = await fetch(`http://127.0.0.1:8000/book-rating/?book_id=${this.chosen_book.id}`,
+                const response = await fetch(`${this.apiBaseUrl}/book-rating/?book_id=${this.chosen_book.id}`,
                 {    
                     method: "GET",
                     headers: {
@@ -794,7 +810,7 @@ export default{
             this.rating = rating;
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/book-rating/",
+                const response = await fetch(`${this.apiBaseUrl}/book-rating/`,
                 {    
                     method: "POST",
                     headers: {

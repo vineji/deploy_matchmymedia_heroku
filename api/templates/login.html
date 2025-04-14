@@ -8,7 +8,7 @@
         <title>Login</title>
     </head>
     <body>
-        <a href="http://127.0.0.1:8080" class="main-page-btn">Main Page</a>
+        <a href="/" class="main-page-btn">Main Page</a>
         <form class="login-container"  method="post">
             {% csrf_token %}
             <h1 class="login-header">Login</h1>
@@ -18,7 +18,7 @@
             </div>
             <div class="login-btn-container">
                 <button type="submit" class="login-btn">Login</button>
-                <a class="signup-btn" href="http://127.0.0.1:8000/signup/">Sign Up</a>
+                <a class="signup-btn" href="/signup/">Sign Up</a>
             </div>
             {% if error %}
             <script>

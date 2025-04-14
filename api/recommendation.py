@@ -227,32 +227,48 @@ def rank_books_by_cosine_similarity(media_query, books):
 def get_recommended_books(media_query):
     print(f"Getting recommendations for: {media_query.get('title', '')}")
     
-    cache_key = f"final_recommendations:{json.dumps(media_query, sort_keys=True)}"
-
+    # Create a simplified cache key that's more likely to match for similar queries
+    # Only use title and genre for the cache key
+    simplified_query = {
+        'title': media_query.get('title', '').lower().strip(),
+        'genre': media_query.get('genre', '').lower().strip()
+    }
+    
+    cache_key = f"recommendations:{json.dumps(simplified_query, sort_keys=True)}"
+    print(f"Cache key: {cache_key}")
+    
     try:
         # Try to get cached recommendations
         cached_recommendations = redis_client.get(cache_key)
         if cached_recommendations:
-            print("Fetching final recommendations from cache")
+            print("✅ CACHE HIT! Fetching recommendations from cache")
             return json.loads(cached_recommendations)
+        else:
+            print("❌ CACHE MISS! No cached recommendations found")
     except Exception as e:
-        print(f"Redis error (non-critical): {e}")
+        print(f"Redis error when reading cache (non-critical): {e}")
         # Continue without caching
 
-    print("Cache miss, generating new recommendations")
-    media_query["keywords"] = extract_keywords(media_query["description"])
+    print("Generating new recommendations...")
+    media_query["keywords"] = extract_keywords(media_query.get("description", ""))
 
     books = fetch_books_from_google_api(media_query)
     try:
-        books += get_collaborative_filtering_recommendations()
+        collab_books = get_collaborative_filtering_recommendations()
+        print(f"Got {len(collab_books)} collaborative filtering recommendations")
+        books += collab_books
     except Exception as e:
         print(f"Error getting collaborative recommendations: {e}")
     
+    print(f"Found {len(books)} total books before ranking")
     ranked_book_recommendations = rank_books_by_cosine_similarity(media_query, books)
+    print(f"Returning {len(ranked_book_recommendations)} ranked recommendations")
 
+    # Cache the results for 30 minutes (1800 seconds)
     try:
-        redis_client.setex(cache_key, 1200, json.dumps(ranked_book_recommendations))
-        print("Successfully cached recommendations")
+        json_data = json.dumps(ranked_book_recommendations)
+        redis_client.setex(cache_key, 1800, json_data)
+        print(f"✅ Successfully cached recommendations with key: {cache_key}")
     except Exception as e:
         print(f"Redis caching error (non-critical): {e}")
 

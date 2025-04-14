@@ -150,6 +150,8 @@
 </template>
 <script>
 import { useUserStore } from '@/stores/userStore';
+import config from '@/config';
+
 export default {
     data() {
         return {
@@ -168,6 +170,7 @@ export default {
             moreInfoBook: {},
             showRequestType: "incoming request",
             showRequestStatus: "pending",
+            apiBaseUrl: config.apiBaseUrl
         }
     },
     setup(){
@@ -187,7 +190,7 @@ export default {
     methods: {
         async fetch_csrf_token(){
             try{
-                const response = await fetch("http://127.0.0.1:8000/csrf/",
+                const response = await fetch(`${this.apiBaseUrl}/csrf/`,
                 {    
                     method: "GET",
                     credentials: "include", 
@@ -219,7 +222,7 @@ export default {
                     params.append('maxAge', this.maxAge);
                 }
 
-                const response = await fetch(`http://127.0.0.1:8000/user-list/?${params.toString()}`,
+                const response = await fetch(`${this.apiBaseUrl}/user-list/?${params.toString()}`,
                 {    
                     method: "GET",
                     credentials: "include", 
@@ -247,7 +250,7 @@ export default {
         async sendFriendRequest(friend_id){
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/friend-request/",
+                const response = await fetch(`${this.apiBaseUrl}/friend-request/`,
                 {    
                     method: "POST",
                     headers: {
@@ -268,7 +271,7 @@ export default {
         },
         async fetch_friend_requests(){
             try{
-                const response = await fetch(`http://127.0.0.1:8000/friend-request/`,
+                const response = await fetch(`${this.apiBaseUrl}/friend-request/`,
                 {    
                     method: "GET",
                     credentials: "include", 
@@ -289,7 +292,7 @@ export default {
         async acceptRequest(request_id){
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/friend-request/",
+                const response = await fetch(`${this.apiBaseUrl}/friend-request/`,
                 {    
                     method: "PUT",
                     headers: {
@@ -312,7 +315,7 @@ export default {
         async declineRequest(request_id){
             try
             {
-                const response = await fetch("http://127.0.0.1:8000/friend-request/",
+                const response = await fetch(`${this.apiBaseUrl}/friend-request/`,
                 {    
                     method: "PUT",
                     headers: {

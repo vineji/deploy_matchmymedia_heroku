@@ -13,7 +13,7 @@
         {% if error %}
             <p>{{error}}</p>
         {% endif %}
-        <a href="http://127.0.0.1:8080" class="main-page-btn">Main Page</a>
+        <a href="/" class="main-page-btn">Main Page</a>
         <form method="post" class="signup-container">
             {% csrf_token %}
             <h1 class="signup-header">Sign Up</h1>
@@ -28,7 +28,7 @@
             </div>
             <div class="signup-btn-container">
                 <button type="submit" class="signup-btn">Sign Up</button>
-                <a href="http://127.0.0.1:8000/login/" class="login-btn">Have an account?</a>
+                <a href="/login/" class="login-btn">Have an account?</a>
             </div>
         </form>
 

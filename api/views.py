@@ -494,13 +494,34 @@ def book_search_view(request):
 
 
 def get_book_recommendations_view(request):
-        
     if request.method == 'GET':
-        data = request.GET.dict()
-
-        recommendations = recommendation.get_recommended_books(data) 
-
-        return JsonResponse({"recommendations": recommendations})
+        try:
+            data = request.GET.dict()
+            
+            # Log the incoming request data
+            print(f"Recommendation request received with data: {data}")
+            
+            # Validate required fields
+            if not data.get('title') or not data.get('description'):
+                return JsonResponse({
+                    "error": "Missing required fields", 
+                    "message": "Title and description are required"
+                }, status=400)
+            
+            # Get recommendations
+            recommendations = recommendation.get_recommended_books(data)
+            
+            # Log success
+            print(f"Successfully returned {len(recommendations)} recommendations")
+            
+            return JsonResponse({"recommendations": recommendations})
+        except Exception as e:
+            # Log and return error
+            print(f"Error in get_book_recommendations_view: {str(e)}")
+            return JsonResponse({
+                "error": "Failed to generate recommendations",
+                "message": str(e)
+            }, status=500)
 
 
 @login_required
