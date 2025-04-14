@@ -1,39 +1,62 @@
 import requests
+import spacy
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from surprise import SVD, Dataset, Reader
+from surprise.model_selection import train_test_split
 from .models import BookRating
 import os
 from dotenv import load_dotenv
 import json
-import numpy as np
+import hashlib
+from numpy import dot
+from numpy.linalg import norm
 
 from django.core.cache import cache
 
 # Load environment variables
 load_dotenv()
 
-# ----------------------
-# 1. Keyword Extraction
-# ----------------------
-def extract_keywords(text, n=7):
-    vectorizer = TfidfVectorizer(stop_words='english', max_features=n)
-    tfidf_matrix = vectorizer.fit_transform([text])
-    feature_arr = vectorizer.get_feature_names_out()
-    tfIdf_sorting = tfidf_matrix.toarray().flatten().argsort()[::-1]
+# NLP
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    # Fall back to TF-IDF only if spaCy model is not installed
+    print("spaCy model not found. Using TF-IDF only for keyword extraction.")
+    nlp = None
 
-    return [feature_arr[i] for i in tfIdf_sorting[:n]]
+# Hugging Face API setup
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+headers = {"Authorization": f"Bearer {os.getenv('HF_API_TOKEN')}"}
+
+
+def get_embedding(text):
+    """Get sentence embedding from Hugging Face API"""
+    try:
+        response = requests.post(HUGGINGFACE_API_URL, headers=headers, json={"inputs": text})
+        response.raise_for_status()
+        return response.json()[0]  # Single embedding vector
+    except requests.RequestException as e:
+        print(f"Embedding API error: {e}")
+        return []
+
+
+def cosine_similarity(vec1, vec2):
+    """Compute cosine similarity between two vectors"""
+    if not vec1 or not vec2:
+        return 0.0
+    return dot(vec1, vec2) / (norm(vec1) * norm(vec2))
 
 
 # --------------------------
-# 2. Google Books Fetch
+# Google Books Fetch
 # --------------------------
 def fetch_books_from_google_api(query):
     api_key = os.getenv("GOOGLE_BOOKS_API_KEY")
     recommendations = []
-
     start_index = 0
     max_results = 40
+
     filtered_categories = [
         "fiction", "drama", "adventure", "fantasy", "horror", "action", "comedy", "history", "western",
         "crime", "mystery", "romance", "magic", "family", "war", "kids", "children", "sci-fi", "comic", "novel", "graphic"
@@ -128,10 +151,12 @@ def fetch_books_from_google_api_using_id(id):
 
     volumeInfo = book_data.get("volumeInfo", {})
     categories = volumeInfo.get("categories", [])
+
+    phrases_to_remove = ["<p>", "</p>", "<br>", "</br>", "<b>", "</b>", "<i>", "</i>"]
     description = volumeInfo.get("description", "No Description Available")
 
-    for tag in ["<p>", "</p>", "<br>", "</br>", "<b>", "</b>", "<i>", "</i>"]:
-        description = description.replace(tag, "")
+    for x in phrases_to_remove:
+        description = description.replace(x, "")
 
     return {
         "id": book_data.get("id"),
@@ -144,46 +169,113 @@ def fetch_books_from_google_api_using_id(id):
     }
 
 
+def extract_keywords(text, n=7):
+    if nlp:
+        # Use spaCy if available
+        doc = nlp(text)
+        words = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
+
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfIdf_matrix = vectorizer.fit_transform([" ".join(words)])
+        feature_arr = vectorizer.get_feature_names_out()
+        tfIdf_sorting = tfIdf_matrix.toarray().flatten().argsort()[::-1]
+    else:
+        # Fall back to simple TF-IDF
+        vectorizer = TfidfVectorizer(stop_words='english', max_features=n)
+        tfidf_matrix = vectorizer.fit_transform([text])
+        feature_arr = vectorizer.get_feature_names_out()
+        tfIdf_sorting = tfidf_matrix.toarray().flatten().argsort()[::-1]
+
+    return [feature_arr[i] for i in tfIdf_sorting[:n]]
+
+
 # ----------------------------------------------
-# 3. Lightweight Collaborative Filtering (pandas)
+# Advanced Collaborative Filtering (Surprise)
 # ----------------------------------------------
 def get_collaborative_filtering_recommendations():
     user_ratings = BookRating.objects.all()
 
     if not user_ratings:
         return []
+    
+    # Check if we have enough ratings to do proper collaborative filtering
+    if len(user_ratings) < 10:
+        print("Not enough ratings for collaborative filtering")
+        return []
 
-    df = pd.DataFrame(list(user_ratings.values("user__id", "book_id", "rating")))
-    pivot = df.pivot_table(index='user__id', columns='book_id', values='rating').fillna(0)
+    try:
+        reader = Reader(rating_scale=(1, 5))
+        data = Dataset.load_from_df(
+            pd.DataFrame(list(user_ratings.values("user__id", "book_id", "rating"))),
+            reader
+        )
 
-    cosine_sim = cosine_similarity(pivot.T)
-    sim_df = pd.DataFrame(cosine_sim, index=pivot.columns, columns=pivot.columns)
+        # Use a smaller test set if we don't have many ratings
+        test_size = 0.2 if len(user_ratings) >= 20 else 0.1
+        train_set, test_set = train_test_split(data, test_size=test_size)
 
-    mean_scores = sim_df.mean(axis=1).sort_values(ascending=False)
+        model = SVD()
+        model.fit(train_set)
 
-    top_books = mean_scores.head(10).index.tolist()
+        predictions = model.test(test_set)
 
-    return [fetch_books_from_google_api_using_id(book_id) for book_id in top_books]
+        book_predictions = {}
+        for uid, iid, true_r, est, _ in predictions:
+            if iid not in book_predictions:
+                book_predictions[iid] = est
+            else:
+                book_predictions[iid] += est
+
+        recommended_books = sorted(book_predictions.items(), key=lambda x: x[1], reverse=True)
+        top_recommended_books = [fetch_books_from_google_api_using_id(book[0]) for book in recommended_books[:10]]
+
+        return top_recommended_books
+    except Exception as e:
+        print(f"Error in collaborative filtering: {e}")
+        return []
 
 
 # -------------------------------------
-# 4. Rank by TF-IDF Cosine Similarity
+# Rank by Embeddings or TF-IDF
 # -------------------------------------
 def rank_books_by_cosine_similarity(media_query, books):
+    """Uses embeddings when available, falls back to TF-IDF"""
+    # Try to use Hugging Face embeddings
+    try:
+        book_descriptions = [book.get("description", "") for book in books]
+        
+        book_embeddings = [get_embedding(desc) for desc in book_descriptions]
+        media_embedding = get_embedding(media_query["description"])
+        
+        if media_embedding and all(book_embeddings):
+            print("Using Hugging Face embeddings for similarity")
+            similarity_scores = [cosine_similarity(media_embedding, emb) for emb in book_embeddings]
+            
+            ranked_books = list(zip(books, similarity_scores))
+            ranked_books.sort(key=lambda x: x[1], reverse=True)
+            
+            return [book[0] for book in ranked_books][:39]
+    
+    except Exception as e:
+        print(f"Error with embeddings: {e}. Falling back to TF-IDF.")
+    
+    # Fall back to TF-IDF similarity
+    print("Using TF-IDF for similarity")
     book_descriptions = [book.get("description", "") for book in books]
-    book_titles = [book.get("title", "") for book in books]
-
+    
     tfidf = TfidfVectorizer(stop_words='english')
     tfidf_matrix = tfidf.fit_transform(book_descriptions + [media_query["description"]])
-
-    similarity_scores = cosine_similarity(tfidf_matrix[-1:], tfidf_matrix[:-1]).flatten()
+    
+    from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity
+    similarity_scores = sklearn_cosine_similarity(tfidf_matrix[-1:], tfidf_matrix[:-1]).flatten()
+    
     ranked = sorted(zip(books, similarity_scores), key=lambda x: x[1], reverse=True)
-
+    
     return [book for book, score in ranked][:39]
 
 
 # -------------------------------
-# 5. Final Recommendation Flow
+# Final Recommendation Flow with Django Cache
 # -------------------------------
 def get_recommended_books(media_query):
     print(f"Getting recommendations for: {media_query.get('title', '')}")
@@ -195,7 +287,11 @@ def get_recommended_books(media_query):
         'genre': media_query.get('genre', '').lower().strip()
     }
     
-    cache_key = f"recommendations:{json.dumps(simplified_query, sort_keys=True)}"
+    # Generate a safer cache key using a hash of the simplified query
+    query_string = f"{simplified_query['title']}:{simplified_query['genre']}"
+    safe_key = hashlib.md5(query_string.encode()).hexdigest()
+    cache_key = f"recommendations_{safe_key}"
+    
     print(f"Cache key: {cache_key}")
     
     # Try to get cached recommendations
