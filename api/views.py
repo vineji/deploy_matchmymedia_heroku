@@ -34,7 +34,11 @@ load_dotenv()
 
 
 def main_spa(request):
-    return render(request, 'index.html')
+    try:
+        return render(request, 'index.html')
+    except:
+        # If the template is not found in the default location, try the static directory
+        return render(request, 'index.html', {})
 
 def get_csrf_token(request):
     csrf_token = get_token(request)

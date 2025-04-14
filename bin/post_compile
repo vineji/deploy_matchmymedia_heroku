@@ -5,8 +5,23 @@ set -e
 
 echo "-----> Post-compile hook"
 
+# Build frontend if Node.js is available (uncomment if needed)
+# echo "-----> Building frontend"
+# cd frontend
+# npm install
+# npm run build
+# cd ..
+
+# Create static directory if it doesn't exist
+echo "-----> Setting up static directory"
+mkdir -p static
+
 # Collect static files
 echo "-----> Collecting static files"
-python manage.py collectstatic --noinput
+python manage.py collectstatic --no-input
+
+# Set proper permissions on static files
+echo "-----> Setting permissions on static files"
+chmod -R 755 staticfiles
 
 echo "-----> Post-compile done" 
