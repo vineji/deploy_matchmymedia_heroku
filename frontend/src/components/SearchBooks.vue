@@ -125,7 +125,7 @@
                 <p><b>Published Date: </b> {{ chosenMedia.volumeInfo['publishedDate']|| "Not specified" }}</p>
                 <ul v-if="chosenMedia.volumeInfo?.categories?.length > 0" class="chosen_genre_list">
                     <p><b>Categories: </b> </p>
-                    <p v-if="chosenMedia.volumeInfo?.categories?.length == 0" class="chosen_genre" style="background-color: grey;" >Unknown</p>
+                    <p v-if="chosenMedia.volumeInfo?.categories?.length == 0" class="chosen_genre" style="background-color: grey;">Unknown</p>
                     <li class="chosen_genre" style="background-color: grey;" v-for="category in chosenMedia.volumeInfo?.categories" :key="category">{{ category }}</li>
                 </ul>
                 <ul v-else class="chosen_genre_list">
@@ -278,7 +278,10 @@ export default {
             }
         },
         async recommendBooks(media) {
-            if (!media) return;
+            if (!media) {
+                alert("Please select a movie, TV show, or book first to get recommendations.");
+                return;
+            }
 
             const media_map = {}
 
@@ -434,9 +437,9 @@ export default {
         select(media){
             this.show_ChosenMedia = true;
             this.chosenMedia = media;
-            this.fetch_book_rating();
+            this.check_book_rating();
             this.mediaList = [];
-            this.query = media.title || media.name || media.volumeInfo['title'];
+            this.query = media.title || media.name || media.volumeInfo?.title;
             this.currentPage = 1;
         },
         getGenreName(id){
@@ -479,6 +482,14 @@ export default {
             } else { 
                 this.$router.push("/dashboard/");
             }
+        },
+        getGenresAsString(genreIds) {
+            if (!genreIds || !Array.isArray(genreIds)) return '';
+            return genreIds.map(id => this.getGenreName(id)).join(',');
+        },
+        getCategoriesAsString(categories) {
+            if (!categories || !Array.isArray(categories)) return '';
+            return categories.join(',');
         }
     },
     mounted(){
