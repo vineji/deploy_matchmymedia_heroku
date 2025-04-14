@@ -1,5 +1,5 @@
 libopenblas-dev
 liblapack-dev
 gfortran
-python-dev
+python-dev-is-python3
 build-essential 
