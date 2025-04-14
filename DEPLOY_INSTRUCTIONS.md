@@ -79,19 +79,55 @@ heroku run python manage.py createsuperuser
 heroku open
 ```
 
-## Troubleshooting
+## Final Steps to Fix Static Files
 
-### Rebuild and redeploy frontend
-If your frontend still doesn't display correctly:
+1. Disable automatic static file collection on Heroku:
 ```
-# Run the build script again
-./build.sh
+heroku config:set DISABLE_COLLECTSTATIC=1
+```
 
-# Commit and push the changes
-git add static/ templates/ -f
-git commit -m "Rebuild frontend"
+2. Set DEBUG to true temporarily:
+```
+heroku config:set DEBUG=True
+```
+
+3. Rebuild your frontend with the updated configuration:
+```
+./build.sh
+```
+
+4. Add the new files and commit:
+```
+git add static/ api/templates/ frontend/vue.config.js -f
+git commit -m "Update static files with non-hashed filenames and move template to api/templates/"
+```
+
+5. Push to Heroku:
+```
 git push heroku main
 ```
+
+6. Manually collect static files:
+```
+heroku run python manage.py collectstatic --no-input
+```
+
+7. Restart your app:
+```
+heroku restart
+```
+
+8. Open your app:
+```
+heroku open
+```
+
+9. Once everything is working, set DEBUG back to false:
+```
+heroku config:set DEBUG=False
+```
+
+## Troubleshooting
 
 ### View logs
 ```
@@ -100,8 +136,16 @@ heroku logs --tail
 
 ### Check static files
 ```
-heroku run ls -la staticfiles/
+heroku run ls staticfiles/
+heroku run ls staticfiles/js/
+heroku run ls staticfiles/css/
 ```
+
+### Run a shell on Heroku
+```
+heroku run bash
+```
+Then you can explore the file system.
 
 ### Restart the app
 ```
