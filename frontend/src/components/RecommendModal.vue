@@ -84,8 +84,7 @@
     </div>
 </template>
 <script>
-
-
+import config from '@/config';
 
 export default{
     data()  {
@@ -96,6 +95,7 @@ export default{
             stars : [1,2,3,4,5],
             rating : 0,
             hoveredStar : 0,
+            apiBaseUrl: config.apiBaseUrl
         }
 
     },
@@ -104,13 +104,14 @@ export default{
         isVisible(newVal){
             if (newVal) {
                 this.show_list = true;
+                this.fetch_csrf_token();
             }
         }
     },
     methods: {
         async fetch_csrf_token(){
             try{
-                const response = await fetch("http://127.0.0.1:8000/csrf/",
+                const response = await fetch(`${this.apiBaseUrl}/csrf/`,
                 {    
                     method: "GET",
                     credentials: "include", 
@@ -133,7 +134,7 @@ export default{
             if (this.loggedUser){
                 try
                 {
-                    const response = await fetch("http://127.0.0.1:8000/user/",
+                    const response = await fetch(`${this.apiBaseUrl}/user/`,
                     {    
                         method: "POST",
                         headers: {
@@ -167,7 +168,7 @@ export default{
             if (this.loggedUser){
                 try
                 {
-                    const response = await fetch(`http://127.0.0.1:8000/book-rating/?book_id=${this.chosen_book.id}`,
+                    const response = await fetch(`${this.apiBaseUrl}/book-rating/?book_id=${this.chosen_book.id}`,
                     {    
                         method: "GET",
                         headers: {
@@ -193,7 +194,7 @@ export default{
                 this.rating = rating;
                 try
                 {
-                    const response = await fetch("http://127.0.0.1:8000/book-rating/",
+                    const response = await fetch(`${this.apiBaseUrl}/book-rating/`,
                     {    
                         method: "POST",
                         headers: {

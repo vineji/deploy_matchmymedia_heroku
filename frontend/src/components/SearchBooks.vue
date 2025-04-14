@@ -25,7 +25,14 @@
                 />
                 <button @click="clearQuery" class="clear_button">&times;</button>
             </div>
-            <button class="rcmnd-button" @click="recommendBooks(chosenMedia)" >Recommend Books</button>
+            <button 
+                class="rcmnd-button"
+                :class="{'active-rcmnd': chosenMedia !== null}"
+                @click="recommendBooks(chosenMedia)"
+                :disabled="chosenMedia === null"
+            >
+                Recommend Books
+            </button>
             <button class="login-btn" @click="redirectToLogin">{{loggedUser.online_id || 'Login'}}</button>
         </form>
         <RecommendModal
@@ -278,6 +285,8 @@ export default {
             }
         },
         async recommendBooks(media) {
+            console.log("recommendBooks called with media:", media);
+            
             if (!media) {
                 alert("Please select a movie, TV show, or book first to get recommendations.");
                 return;
@@ -286,35 +295,44 @@ export default {
             const media_map = {}
 
             if (this.searchMedia === 'Movies') {
-                media_map["title"] = media.title;
-                media_map["description"] = media.overview;
+                media_map["title"] = media.title || '';
+                media_map["description"] = media.overview || '';
                 media_map["genre"] = this.getGenresAsString(media.genre_ids);
             } else if (this.searchMedia === 'TV Shows') {
-                media_map["title"] = media.name;
-                media_map["description"] = media.overview;
+                media_map["title"] = media.name || '';
+                media_map["description"] = media.overview || '';
                 media_map["genre"] = this.getGenresAsString(media.genre_ids);
             } else if (this.searchMedia === 'Books') {
-                media_map["title"] = media.volumeInfo["title"];
-                media_map["description"] = media.volumeInfo["description"];
-                media_map["genre"] = this.getCategoriesAsString(media.volumeInfo["categories"]);
+                media_map["title"] = media.volumeInfo?.title || '';
+                media_map["description"] = media.volumeInfo?.description || '';
+                media_map["genre"] = this.getCategoriesAsString(media.volumeInfo?.categories);
             }
 
-            let media_params = new URLSearchParams(media_map)
+            console.log("Media map created:", media_map);
+            
+            const media_params = new URLSearchParams(media_map);
+            const url = `${this.apiBaseUrl}/get-recommendations/?${media_params.toString()}`;
+            
+            console.log("Recommendation URL:", url);
 
-            let url = `${this.apiBaseUrl}/get-recommendations/?` + media_params.toString();
             try {
+                console.log("Fetching recommendations...");
                 const response = await fetch(url);
 
                 if(!response.ok){
-                    throw new Error('Failed to fecth recommendations');
+                    const errorText = await response.text();
+                    console.error("Error response:", errorText);
+                    throw new Error(`Failed to fetch recommendations: ${response.status} ${response.statusText}`);
                 }
 
                 const data = await response.json();
+                console.log("Received recommendations:", data);
                 this.rcmndBooks = data.recommendations || [];
                 this.isModalVisible = true;
                 console.log(`received ${this.rcmndBooks.length} recommendations`);
             } catch (error) {
-                console.error("Error fetching recommendations", error);
+                console.error("Error fetching recommendations:", error);
+                alert("Failed to get recommendations. Please try again.");
             }
         },
         async addToFavourites(media) {
@@ -435,11 +453,28 @@ export default {
             this.search(true);
         },
         select(media){
+            console.log("select method called with media:", media);
+            
+            if (!media) {
+                console.error("No media provided to select method");
+                return;
+            }
+            
             this.show_ChosenMedia = true;
             this.chosenMedia = media;
-            this.check_book_rating();
+            
+            console.log("chosenMedia set to:", this.chosenMedia);
+            
+            if (this.searchMedia === 'Books') {
+                this.check_book_rating();
+            }
+            
+            // Set query to title for better UX
+            this.query = media.title || media.name || media.volumeInfo?.title || '';
+            console.log("Query updated to:", this.query);
+            
+            // Clear media list to focus on selected item
             this.mediaList = [];
-            this.query = media.title || media.name || media.volumeInfo?.title;
             this.currentPage = 1;
         },
         getGenreName(id){
@@ -637,12 +672,27 @@ li{
     height: 3.31rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     transition: 0.3s ease;
+    cursor: pointer;
 }
 
+.rcmnd-button:disabled {
+    background-color: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+}
 
-.rcmnd-button:hover{
+.rcmnd-button.active-rcmnd {
+    background-color: #FF9F1C;
+    color: white;
+    font-weight: bold;
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.rcmnd-button:hover:not(:disabled){
     background-color: #25c79eb5;
     color: #1b1b1e8f;
+    transform: scale(1.05);
     transition: 0.3s ease;
 }
 .login-btn{
