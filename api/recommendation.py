@@ -9,13 +9,45 @@ from dotenv import load_dotenv
 import redis
 import json
 import numpy as np
+import ssl
 
 # Load environment variables
 load_dotenv()
 
-# Redis remains unchanged
+# Redis configuration with SSL handling
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
-redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+try:
+    # For Heroku Redis with SSL
+    if REDIS_URL.startswith('rediss://'):
+        # Create a custom connection class that skips certificate validation
+        class SSLConnection(redis.Connection):
+            def __init__(self, **kwargs):
+                kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
+                super().__init__(**kwargs)
+        
+        # Create a connection pool with our custom class
+        pool = redis.ConnectionPool.from_url(
+            REDIS_URL,
+            connection_class=SSLConnection
+        )
+        redis_client = redis.Redis(connection_pool=pool, decode_responses=True)
+    else:
+        # For local Redis without SSL
+        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+    
+    # Test the connection
+    redis_client.ping()
+    print("Redis connection successful")
+except Exception as e:
+    print(f"Redis connection error: {e}")
+    # Fallback to a dummy client that doesn't throw errors
+    class DummyRedisClient:
+        def get(self, key):
+            return None
+        def setex(self, key, time, value):
+            pass
+    redis_client = DummyRedisClient()
+    print("Using dummy Redis client")
 
 # Replacing spaCy + transformers
 # We'll use TF-IDF for keyword extraction and similarity
@@ -26,7 +58,10 @@ redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 def extract_keywords(text, n=7):
     vectorizer = TfidfVectorizer(stop_words='english', max_features=n)
     tfidf_matrix = vectorizer.fit_transform([text])
-    return vectorizer.get_feature_names_out().tolist()
+    feature_arr = vectorizer.get_feature_names_out()
+    tfIdf_sorting = tfidf_matrix.toarray().flatten().argsort()[::-1]
+
+    return [feature_arr[i] for i in tfIdf_sorting[:n]]
 
 
 # --------------------------
@@ -190,26 +225,35 @@ def rank_books_by_cosine_similarity(media_query, books):
 # 5. Final Recommendation Flow
 # -------------------------------
 def get_recommended_books(media_query):
+    print(f"Getting recommendations for: {media_query.get('title', '')}")
+    
     cache_key = f"final_recommendations:{json.dumps(media_query, sort_keys=True)}"
 
     try:
+        # Try to get cached recommendations
         cached_recommendations = redis_client.get(cache_key)
         if cached_recommendations:
             print("Fetching final recommendations from cache")
             return json.loads(cached_recommendations)
-    except ConnectionError:
-        print("Redis connect error. Provide recommendations without caching")
+    except Exception as e:
+        print(f"Redis error (non-critical): {e}")
+        # Continue without caching
 
+    print("Cache miss, generating new recommendations")
     media_query["keywords"] = extract_keywords(media_query["description"])
 
     books = fetch_books_from_google_api(media_query)
-    books += get_collaborative_filtering_recommendations()
-
+    try:
+        books += get_collaborative_filtering_recommendations()
+    except Exception as e:
+        print(f"Error getting collaborative recommendations: {e}")
+    
     ranked_book_recommendations = rank_books_by_cosine_similarity(media_query, books)
 
     try:
         redis_client.setex(cache_key, 1200, json.dumps(ranked_book_recommendations))
-    except ConnectionError:
-        print("Redis connect error. Skip cache writing")
+        print("Successfully cached recommendations")
+    except Exception as e:
+        print(f"Redis caching error (non-critical): {e}")
 
     return ranked_book_recommendations
