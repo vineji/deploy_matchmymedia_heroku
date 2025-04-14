@@ -12,11 +12,23 @@ from dotenv import load_dotenv
 import redis
 import json
 
-redis_client = redis.Redis(host='127.0.0.1', port=6379, db=0, decode_responses=True)
+# Load environment variables
 load_dotenv()
 
+# Use Redis URL from environment variable or fallback to localhost
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
-nlp = spacy.load("en_core_web_sm")
+# Load spaCy model
+try:
+    nlp = spacy.load("en_core_web_sm")
+except:
+    # For Heroku deployment - download the model if it's not available
+    import sys
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
+    
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 

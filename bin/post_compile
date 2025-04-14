@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# Make the script exit on failures
+set -e
+
+echo "-----> Post-compile hook"
+
+# Download spaCy model
+echo "-----> Downloading spaCy model"
+python -m spacy download en_core_web_sm
+
+# Collect static files
+echo "-----> Collecting static files"
+python manage.py collectstatic --noinput
+
+echo "-----> Post-compile done" 
