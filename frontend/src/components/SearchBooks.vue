@@ -141,6 +141,7 @@
 import { useGenreStore } from '@/stores/genreStore';
 import RecommendModal from './RecommendModal.vue';
 import { useUserStore } from '@/stores/userStore';
+import config from '@/config';
 
 export default {
     components: {RecommendModal},
@@ -161,6 +162,7 @@ export default {
             rating : 0,
             hoveredStar : 0,
             isLoading : false,
+            apiBaseUrl: config.apiBaseUrl
         };
     },
     setup(){
@@ -193,11 +195,9 @@ export default {
         },
     },
     methods: {
-
         async fetch_csrf_token(){
-
             try{
-                const response = await fetch("http://127.0.0.1:8000/csrf/",
+                const response = await fetch(`${this.apiBaseUrl}/csrf/`,
                 {    
                     method: "GET",
                     credentials: "include", 
@@ -206,219 +206,205 @@ export default {
                 if (response.ok){
                     const data = await response.json();
                     this.csrfToken = data.csrfToken;
-                    console.log(`Fetched csrf token: ${this.csrfToken}`);
+                    console.log(`Fetched csrf token: ${this.csrfToken}`)
+                } else {
+                    console.log(`Failed to fetch csrf token: ${response.statusText}`)
                 }
-                else{
-                console.log(`Failed to fetch token, ${response.statusText}`)
-                }
-            }
-            catch (error){
-                console.error(`Error fetching token, ${error}`)
+            } catch(error){
+                console.error(`Error fetching csrf token: ${error}`)
             }
         },
-        async search(newSearch){
+        async search(reset_page = false) {
             this.isLoading = true;
-
-            this.show_ChosenMedia = false;
-            this.chosenMedia = null;
-
-
-            if (newSearch == true){
+            if (reset_page) {
                 this.currentPage = 1;
                 this.showPageMultiplier = 1;
             }
-            
-
-            if (this.searchMedia == "Movies"){
-                try{
-                    const response = await fetch(`http://127.0.0.1:8000/search-movie/?title=${this.query}&page=${this.currentPage}`);
+            if (this.searchMedia === 'Movies') {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/search-movie/?title=${this.query}&page=${this.currentPage}`);
 
                     if (!response.ok){
                         throw new Error('Failed to fetch data');
                     }
+
                     const data = await response.json();
                     this.mediaList = data.movies || [];
-                    this.currentPage = data.current_page || 1;
-                    this.totalPages = data.total_pages || 1;
+                    this.currentPage = data.current_page;
+                    this.totalPages = data.total_pages;
+                    this.isLoading = false;
+                } 
+                catch (error) {
+                    console.error('Error:', error);
+                    this.isLoading = false;
                 }
-                catch (error){
-                    console.error('error catching data', error)
-                }
-            }
-            else if (this.searchMedia == "TV Shows"){
-                try{
-                    const response = await fetch(`http://127.0.0.1:8000/search-show/?title=${this.query}&page=${this.currentPage}`);
+            } 
+            else if (this.searchMedia === 'TV Shows') {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/search-show/?title=${this.query}&page=${this.currentPage}`);
 
                     if (!response.ok){
                         throw new Error('Failed to fetch data');
                     }
+
                     const data = await response.json();
                     this.mediaList = data.shows || [];
-                    this.currentPage = data.current_page || 1;
-                    this.totalPages = data.total_pages || 1;
+                    this.currentPage = data.current_page;
+                    this.totalPages = data.total_pages;
+                    this.isLoading = false;
+                } 
+                catch (error) {
+                    console.error('Error:', error);
+                    this.isLoading = false;
                 }
-                catch (error){
-                    console.error('error catching data', error)
-                }
-            }
-            else if (this.searchMedia == "Books"){
-                try{
-                    const response = await fetch(`http://127.0.0.1:8000/search-book/?title=${this.query}&page=${this.currentPage}`);
+            } 
+            else if (this.searchMedia === 'Books') {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/search-book/?title=${this.query}&page=${this.currentPage}`);
                     if (!response.ok){
                         throw new Error('Failed to fetch data');
                     }
+
                     const data = await response.json();
                     this.mediaList = data.books || [];
-                    this.currentPage = data.current_page || 1;
-                    this.totalPages = data.total_pages || 1;
-                    console.log(data);
-                }
-                catch (error){
-                    console.error('error catching data', error)
+                    this.currentPage = data.current_page;
+                    this.totalPages = data.total_pages;
+                    this.isLoading = false;
+                } 
+                catch (error) {
+                    console.error('Error:', error);
+                    this.isLoading = false;
                 }
             }
-            this.isLoading = false;
-
         },
-        async recommendBooks(media){
+        async recommendBooks(media) {
+            if (!media) return;
 
-            if (media == null){
-                alert("Select a media in order to get book recommendations.");
-                return;
-            }
-            this.rcmndBooks = [];
-            this.openModal();
+            const media_map = {}
 
-            let media_map = new Map();
-            let genres = []
-
-            if (this.searchMedia == "Movies" || this.searchMedia == "TV Shows"){
-                for (let i = 0; i < media.genre_ids.length; i++){
-                    genres.push(this.getGenreName(media.genre_ids[i]))
-                }
-                media_map.set("title", media.title || media.name);
-                media_map.set("description", media.overview);
-                media_map.set("genre", genres);
-            }
-            else if(this.searchMedia == "Books"){
-                media_map.set("title", media.volumeInfo['title']);
-                media_map.set("description",media.volumeInfo['description']);
-                media_map.set("genre", media.volumeInfo['categories']);
+            if (this.searchMedia === 'Movies') {
+                media_map["title"] = media.title;
+                media_map["description"] = media.overview;
+                media_map["genre"] = this.getGenresAsString(media.genre_ids);
+            } else if (this.searchMedia === 'TV Shows') {
+                media_map["title"] = media.name;
+                media_map["description"] = media.overview;
+                media_map["genre"] = this.getGenresAsString(media.genre_ids);
+            } else if (this.searchMedia === 'Books') {
+                media_map["title"] = media.volumeInfo["title"];
+                media_map["description"] = media.volumeInfo["description"];
+                media_map["genre"] = this.getCategoriesAsString(media.volumeInfo["categories"]);
             }
 
             let media_params = new URLSearchParams(media_map)
 
-            let url = 'http://127.0.0.1:8000/get-recommendations/?' + media_params.toString();
+            let url = `${this.apiBaseUrl}/get-recommendations/?` + media_params.toString();
             try {
                 const response = await fetch(url);
 
                 if(!response.ok){
-                    throw new Error("Failed to fecth recommendations");
+                    throw new Error('Failed to fecth recommendations');
                 }
+
                 const data = await response.json();
                 this.rcmndBooks = data.recommendations || [];
-            }
-            catch (error){
-                console.error("Error fecthing recommendations ", error)
-            }
-        },
-        async addToFavourites(book){
-            if (this.loggedUser.online_id){
-                const book_object = {}
-                book_object.id = book.id;
-                book_object.image = book.volumeInfo?.imageLinks?.thumbnail;
-                book_object.title = book.volumeInfo?.title;
-                book_object.authors = book.volumeInfo?.authors;
-                book_object.published_date = book.volumeInfo['publishedDate']|| "Not specified";
-                book_object.categories = book.volumeInfo?.categories;
-                book_object.description = book.volumeInfo?.description;
-
-                try
-                {
-                    const response = await fetch("http://127.0.0.1:8000/user/",
-                    {    
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRFToken": this.csrfToken,
-                        },
-                        body: JSON.stringify({ book: book_object, action: "add_book" }),
-                        credentials: "include", 
-                    })
-                    const data = await response.json();
-                    if (!response.ok) {
-                        if (data.error === 'Book is already added to favourites'){
-
-                            alert("You have already added this book to your favourites");
-                        }
-                        else{
-                            throw new Error(`Failed to add book: ${response.status}`);
-                        }
-                    }
-                }
-                catch (error){
-                    console.error("Error adding book:", error);
-                }
-            }
-            else{
-                alert("You have to login to favourite a book.");
-            }
-
-        },
-        async fetch_book_rating(){
-            if (this.loggedUser.online_id && this.searchMedia == "Books"){
-                try
-                {
-                    const response = await fetch(`http://127.0.0.1:8000/book-rating/?book_id=${this.chosenMedia.id}`,
-                    {    
-                        method: "GET",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRFToken": this.csrfToken,
-                        },
-                        credentials: "include", 
-                    })
-                    if (!response.ok) {
-                        throw new Error(`Failed to fetch book: ${response.status}`);
-                    }
-                    const data = await response.json();
-                    this.rating = data.book_rating || 0;
-                }
-                catch (error){
-                    console.error("Error fetching book:", error);
-                }
-
+                this.isModalVisible = true;
+                console.log(`received ${this.rcmndBooks.length} recommendations`);
+            } catch (error) {
+                console.error("Error fetching recommendations", error);
             }
         },
-        async rateBook(rating){
-
-            if (this.loggedUser.online_id){
-                this.rating = rating;
-                try
-                {
-                    const response = await fetch("http://127.0.0.1:8000/book-rating/",
-                    {    
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRFToken": this.csrfToken,
-                        },
-                        body: JSON.stringify({ book_id: this.chosenMedia?.id, book_rating: rating }),
-                        credentials: "include", 
-                    })
-                    if (!response.ok) {
-                            throw new Error(`Failed to add book: ${response.status}`);
-                        }
-                }
-                catch (error){
-                    console.error("Error adding book:", error);
-                }
-
-            }
-            else{
-                alert("You need to login to rate a book");
+        async addToFavourites(media) {
+            if (this.loggedUser.online_id == null) {
+                window.location.href = `${this.apiBaseUrl}/login/`;
+                return;
             }
 
+            const book = {}
+            book.id = media.id;
+            book.title = media.volumeInfo?.title;
+            book.authors = media.volumeInfo?.authors;
+            book.description = media.volumeInfo?.description;
+
+            try {
+                const response = await fetch(`${this.apiBaseUrl}/user/`,
+                {    
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": this.csrfToken
+                    },
+                    body: JSON.stringify({
+                        book: book,
+                        action: "add_book"
+                    }),
+                    credentials: "include"
+                });
+                const data = await response.json();
+                alert(`${data.message || 'Success'}!`);
+                
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Failed to add to favourites. Please try again.");
+            }
+        },
+        async check_book_rating() {
+            if (this.loggedUser.online_id == null) return;
+            try {
+                const response = await fetch(`${this.apiBaseUrl}/book-rating/?book_id=${this.chosenMedia.id}`,
+                {    
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": this.csrfToken
+                    },
+                    credentials: "include"
+                });
+
+                if (!response.ok){
+                    throw new Error(`Failed to fetch book rating: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                if (data.book_rating) {
+                    this.rating = data.book_rating;
+                }
+            } catch (error) {
+                console.error(`Error fetching book rating: ${error}`);
+            }
+        },
+        async rateBook(rating) {
+            if (this.loggedUser.online_id == null) {
+                window.location.href = `${this.apiBaseUrl}/login/`;
+                return;
+            }
+            this.rating = rating;
+            try {
+                const response = await fetch(`${this.apiBaseUrl}/book-rating/`,
+                {    
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": this.csrfToken
+                    },
+                    body: JSON.stringify({
+                        book_id: this.chosenMedia?.id,
+                        book_rating: rating
+                    }),
+                    credentials: "include"
+                });
+
+                if (!response.ok){
+                    throw new Error(`Failed to save book rating: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log(data.message);
+                
+            } catch (error) {
+                console.error(`Error saving book rating: ${error}`);
+                alert("Failed to save rating. Please try again.");
+            }
         },
         hoverStar(star){
             this.hoveredStar= star;
@@ -488,11 +474,10 @@ export default {
             window.scrollTo({top: 0, behavior: 'smooth'});
         },
         redirectToLogin(){
-            if (this.loggedUser.online_id){
-                window.location.href= "/dashboard/";
-            }
-            else{
-                window.location.href= "http://127.0.0.1:8000/login/";
+            if (this.loggedUser.online_id == null) {
+                window.location.href= `${this.apiBaseUrl}/login/`;
+            } else { 
+                this.$router.push("/dashboard/");
             }
         }
     },
