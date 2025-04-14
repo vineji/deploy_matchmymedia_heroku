@@ -274,6 +274,7 @@ export default{
             searchedBooks: [],
             totalPages: 1,
             currentPage: 1,
+            showPageMultiplier: 1,
             openAddBook: false,
             showList: true,
             chosen_book: null,

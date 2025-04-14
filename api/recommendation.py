@@ -5,52 +5,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from .models import BookRating
 import os
 from dotenv import load_dotenv
-
-import redis
 import json
 import numpy as np
-import ssl
+
+from django.core.cache import cache
 
 # Load environment variables
 load_dotenv()
-
-# Redis configuration with SSL handling
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
-try:
-    # For Heroku Redis with SSL
-    if REDIS_URL.startswith('rediss://'):
-        # Create a custom connection class that skips certificate validation
-        class SSLConnection(redis.Connection):
-            def __init__(self, **kwargs):
-                kwargs['ssl_cert_reqs'] = ssl.CERT_NONE
-                super().__init__(**kwargs)
-        
-        # Create a connection pool with our custom class
-        pool = redis.ConnectionPool.from_url(
-            REDIS_URL,
-            connection_class=SSLConnection
-        )
-        redis_client = redis.Redis(connection_pool=pool, decode_responses=True)
-    else:
-        # For local Redis without SSL
-        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
-    
-    # Test the connection
-    redis_client.ping()
-    print("Redis connection successful")
-except Exception as e:
-    print(f"Redis connection error: {e}")
-    # Fallback to a dummy client that doesn't throw errors
-    class DummyRedisClient:
-        def get(self, key):
-            return None
-        def setex(self, key, time, value):
-            pass
-    redis_client = DummyRedisClient()
-    print("Using dummy Redis client")
-
-# Replacing spaCy + transformers
-# We'll use TF-IDF for keyword extraction and similarity
 
 # ----------------------
 # 1. Keyword Extraction
@@ -237,17 +198,13 @@ def get_recommended_books(media_query):
     cache_key = f"recommendations:{json.dumps(simplified_query, sort_keys=True)}"
     print(f"Cache key: {cache_key}")
     
-    try:
-        # Try to get cached recommendations
-        cached_recommendations = redis_client.get(cache_key)
-        if cached_recommendations:
-            print("✅ CACHE HIT! Fetching recommendations from cache")
-            return json.loads(cached_recommendations)
-        else:
-            print("❌ CACHE MISS! No cached recommendations found")
-    except Exception as e:
-        print(f"Redis error when reading cache (non-critical): {e}")
-        # Continue without caching
+    # Try to get cached recommendations
+    cached_recommendations = cache.get(cache_key)
+    if cached_recommendations:
+        print("✅ CACHE HIT! Fetching recommendations from cache")
+        return cached_recommendations
+    else:
+        print("❌ CACHE MISS! No cached recommendations found")
 
     print("Generating new recommendations...")
     media_query["keywords"] = extract_keywords(media_query.get("description", ""))
@@ -265,11 +222,7 @@ def get_recommended_books(media_query):
     print(f"Returning {len(ranked_book_recommendations)} ranked recommendations")
 
     # Cache the results for 30 minutes (1800 seconds)
-    try:
-        json_data = json.dumps(ranked_book_recommendations)
-        redis_client.setex(cache_key, 1800, json_data)
-        print(f"✅ Successfully cached recommendations with key: {cache_key}")
-    except Exception as e:
-        print(f"Redis caching error (non-critical): {e}")
+    cache.set(cache_key, ranked_book_recommendations, timeout=1800)
+    print(f"✅ Successfully cached recommendations with key: {cache_key}")
 
     return ranked_book_recommendations
