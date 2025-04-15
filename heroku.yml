@@ -1,8 +1,0 @@
-build:
-  docker:
-    web: Dockerfile
-run:
-  web: gunicorn myproject.wsgi --log-file -
-release:
-  command:
-    - python manage.py migrate 
