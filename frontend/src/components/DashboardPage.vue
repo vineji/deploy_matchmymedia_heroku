@@ -394,7 +394,6 @@ export default{
                     throw new Error('Failed to logout');
                 }
                 this.userStore.clearUser();
-                window.location.href = "/login/";
             }
             catch (error){
                 console.error('error logging out', error)
