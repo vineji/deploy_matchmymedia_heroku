@@ -34,6 +34,10 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = ['*', '.herokuapp.com']
 
 AUTH_USER_MODEL= 'api.User'
+
+# Login URL
+LOGIN_URL = '/login/'
+
 # Application definition
 
 INSTALLED_APPS = [
