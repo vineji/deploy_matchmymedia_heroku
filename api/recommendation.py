@@ -2,6 +2,7 @@ import requests
 import spacy
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer, util
 from surprise import SVD, Dataset, Reader
 from surprise.model_selection import train_test_split
 from .models import BookRating
@@ -25,7 +26,10 @@ except OSError:
     print("spaCy model not found. Using TF-IDF only for keyword extraction.")
     nlp = None
 
-# Hugging Face API setup
+# Load SentenceTransformer model
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Hugging Face API setup as fallback
 HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
 headers = {"Authorization": f"Bearer {os.getenv('HF_API_TOKEN')}"}
 
@@ -236,28 +240,29 @@ def get_collaborative_filtering_recommendations():
 
 
 # -------------------------------------
-# Rank by Embeddings or TF-IDF
+# Rank by Embeddings using SentenceTransformer
 # -------------------------------------
 def rank_books_by_cosine_similarity(media_query, books):
-    """Uses embeddings when available, falls back to TF-IDF"""
-    # Try to use Hugging Face embeddings
+    """Uses local SentenceTransformer for embeddings, falls back to TF-IDF"""
     try:
         book_descriptions = [book.get("description", "") for book in books]
         
-        book_embeddings = [get_embedding(desc) for desc in book_descriptions]
-        media_embedding = get_embedding(media_query["description"])
+        # Use local SentenceTransformer model
+        print("Using local SentenceTransformer model for embeddings")
+        book_embeddings = model.encode(book_descriptions, convert_to_tensor=True)
+        media_embedding = model.encode(media_query["description"], convert_to_tensor=True)
         
-        if media_embedding and all(book_embeddings):
-            print("Using Hugging Face embeddings for similarity")
-            similarity_scores = [cosine_similarity(media_embedding, emb) for emb in book_embeddings]
-            
-            ranked_books = list(zip(books, similarity_scores))
-            ranked_books.sort(key=lambda x: x[1], reverse=True)
-            
-            return [book[0] for book in ranked_books][:39]
+        # Calculate similarity using PyTorch
+        similarity_scores = util.pytorch_cos_sim(media_embedding, book_embeddings)
+        similarity_scores = similarity_scores.squeeze(0).tolist()
+        
+        ranked_books = list(zip(books, similarity_scores))
+        ranked_books.sort(key=lambda x: x[1], reverse=True)
+        
+        return [book[0] for book in ranked_books][:39]
     
     except Exception as e:
-        print(f"Error with embeddings: {e}. Falling back to TF-IDF.")
+        print(f"Error with SentenceTransformer: {e}. Falling back to TF-IDF.")
     
     # Fall back to TF-IDF similarity
     print("Using TF-IDF for similarity")
@@ -317,8 +322,8 @@ def get_recommended_books(media_query):
     ranked_book_recommendations = rank_books_by_cosine_similarity(media_query, books)
     print(f"Returning {len(ranked_book_recommendations)} ranked recommendations")
 
-    # Cache the results for 30 minutes (1800 seconds)
-    cache.set(cache_key, ranked_book_recommendations, timeout=1800)
+    # Cache the results for 20 minutes (1200 seconds)
+    cache.set(cache_key, ranked_book_recommendations, timeout=1200)
     print(f"✅ Successfully cached recommendations with key: {cache_key}")
 
     return ranked_book_recommendations
