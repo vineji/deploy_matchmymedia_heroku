@@ -336,7 +336,7 @@ export default {
             }
         },
         async addToFavourites(media) {
-            if (this.loggedUser.online_id == null) {
+            if (!this.userStore.user_id) {
                 window.location.href = `${this.apiBaseUrl}/login/`;
                 return;
             }
@@ -370,7 +370,7 @@ export default {
             }
         },
         async check_book_rating() {
-            if (this.loggedUser.online_id == null) return;
+            if (!this.userStore.user_id) return;
             try {
                 const response = await fetch(`${this.apiBaseUrl}/book-rating/?book_id=${this.chosenMedia.id}`,
                 {    
@@ -512,9 +512,9 @@ export default {
             window.scrollTo({top: 0, behavior: 'smooth'});
         },
         redirectToLogin(){
-            if (this.loggedUser.online_id == null) {
+            if (!this.userStore.user_id) {
                 window.location.href= `${this.apiBaseUrl}/login/`;
-            } else { 
+            } else {
                 this.$router.push("/dashboard/");
             }
         },
