@@ -11,7 +11,6 @@ import json
 import hashlib
 from numpy import dot
 from numpy.linalg import norm
-import numpy as np
 
 from django.core.cache import cache
 
@@ -22,38 +21,24 @@ load_dotenv()
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    # If model not found, download it and load it
-    print("spaCy model not found. Downloading en_core_web_sm...")
-    import sys
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
-    nlp = spacy.load("en_core_web_sm")
+    # Fall back to TF-IDF only if spaCy model is not installed
+    print("spaCy model not found. Using TF-IDF only for keyword extraction.")
+    nlp = None
 
 # Hugging Face API setup
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
 headers = {"Authorization": f"Bearer {os.getenv('HF_API_TOKEN')}"}
 
 
-def get_embeddings_batch(texts, batch_size=20):
-    """Get sentence embeddings in batches from Hugging Face API"""
-    all_embeddings = []
-    
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i+batch_size]
-        try:
-            response = requests.post(HUGGINGFACE_API_URL, headers=headers, json={"inputs": batch})
-            response.raise_for_status()
-            
-            batch_embeddings = response.json()
-            all_embeddings.extend(batch_embeddings)
-            
-            print(f"Processed batch {i//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size}")
-        except requests.RequestException as e:
-            print(f"Embedding API error in batch {i//batch_size + 1}: {e}")
-            # Add empty embeddings as fallback
-            all_embeddings.extend([[] for _ in range(len(batch))])
-    
-    return all_embeddings
+def get_embedding(text):
+    """Get sentence embedding from Hugging Face API"""
+    try:
+        response = requests.post(HUGGINGFACE_API_URL, headers=headers, json={"inputs": text})
+        response.raise_for_status()
+        return response.json()[0]  # Single embedding vector
+    except requests.RequestException as e:
+        print(f"Embedding API error: {e}")
+        return []
 
 
 def cosine_similarity(vec1, vec2):
@@ -92,7 +77,7 @@ def fetch_books_from_google_api(query):
 
             param_list_title = {
                 "q": query_string_title,
-                "maxResults": 3,
+                "maxResults": 5,
                 "startIndex": start_index,
                 "key": api_key
             }
@@ -251,35 +236,42 @@ def get_collaborative_filtering_recommendations():
 
 
 # -------------------------------------
-# Rank by Embeddings using Hugging Face API
+# Rank by Embeddings or TF-IDF
 # -------------------------------------
 def rank_books_by_cosine_similarity(media_query, books):
-    if not books:
-        return []
+    """Uses embeddings when available, falls back to TF-IDF"""
+    # Try to use Hugging Face embeddings
+    try:
+        book_descriptions = [book.get("description", "") for book in books]
+        
+        book_embeddings = [get_embedding(desc) for desc in book_descriptions]
+        media_embedding = get_embedding(media_query["description"])
+        
+        if media_embedding and all(book_embeddings):
+            print("Using Hugging Face embeddings for similarity")
+            similarity_scores = [cosine_similarity(media_embedding, emb) for emb in book_embeddings]
+            
+            ranked_books = list(zip(books, similarity_scores))
+            ranked_books.sort(key=lambda x: x[1], reverse=True)
+            
+            return [book[0] for book in ranked_books][:39]
     
+    except Exception as e:
+        print(f"Error with embeddings: {e}. Falling back to TF-IDF.")
+    
+    # Fall back to TF-IDF similarity
+    print("Using TF-IDF for similarity")
     book_descriptions = [book.get("description", "") for book in books]
-    texts_to_embed = book_descriptions + [media_query["description"]]
     
-    # Get all embeddings in one batch request
-    print(f"Getting embeddings for {len(texts_to_embed)} texts...")
-    all_embeddings = get_embeddings_batch(texts_to_embed)
+    tfidf = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = tfidf.fit_transform(book_descriptions + [media_query["description"]])
     
-    if not all_embeddings or len(all_embeddings) < len(texts_to_embed):
-        print("Error getting embeddings, falling back to basic ranking")
-        return books[:min(39, len(books))]
+    from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity
+    similarity_scores = sklearn_cosine_similarity(tfidf_matrix[-1:], tfidf_matrix[:-1]).flatten()
     
-    # Split the embeddings
-    book_embeddings = all_embeddings[:-1]
-    media_embedding = all_embeddings[-1]
+    ranked = sorted(zip(books, similarity_scores), key=lambda x: x[1], reverse=True)
     
-    # Calculate similarity scores
-    similarity_scores = [cosine_similarity(media_embedding, book_emb) for book_emb in book_embeddings]
-    
-    # Zip books with their scores, sort, and return top books
-    ranked_books = list(zip(books, similarity_scores))
-    ranked_books.sort(key=lambda x: x[1], reverse=True)
-    
-    return [book[0] for book in ranked_books][:39]
+    return [book for book, score in ranked][:39]
 
 
 # -------------------------------
