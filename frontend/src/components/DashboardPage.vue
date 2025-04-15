@@ -394,7 +394,7 @@ export default{
                     throw new Error('Failed to logout');
                 }
                 this.userStore.clearUser();
-                this.$router.push('/login');
+                this.$router.push('/login/');
             }
             catch (error){
                 console.error('error logging out', error)
