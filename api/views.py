@@ -84,7 +84,7 @@ def login_view(request):
 @login_required
 def logout_view(request):
     logout(request)
-    return render(request, 'login.html')
+    return JsonResponse({"success": True, "message": "Successfully logged out"})
 
 def sign_up_view(request):
     if request.method== "POST":

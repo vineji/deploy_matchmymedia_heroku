@@ -393,8 +393,12 @@ export default{
                 if (!response.ok){
                     throw new Error('Failed to logout');
                 }
-                this.userStore.clearUser();
-                this.$router.push('/login/');
+                
+                const data = await response.json();
+                if (data.success) {
+                    this.userStore.clearUser();
+                    window.location.href = '/login/';
+                }
             }
             catch (error){
                 console.error('error logging out', error)
