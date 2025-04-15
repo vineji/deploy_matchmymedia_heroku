@@ -2,7 +2,6 @@ import requests
 import spacy
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sentence_transformers import SentenceTransformer, util
 from surprise import SVD, Dataset, Reader
 from surprise.model_selection import train_test_split
 from .models import BookRating
@@ -12,6 +11,7 @@ import json
 import hashlib
 from numpy import dot
 from numpy.linalg import norm
+import numpy as np
 
 from django.core.cache import cache
 
@@ -29,23 +29,31 @@ except OSError:
     subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
 
-# Load SentenceTransformer model
-model = SentenceTransformer("all-MiniLM-L6-v2")
-
 # Hugging Face API setup
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
 headers = {"Authorization": f"Bearer {os.getenv('HF_API_TOKEN')}"}
 
 
-def get_embedding(text):
-    """Get sentence embedding from Hugging Face API"""
-    try:
-        response = requests.post(HUGGINGFACE_API_URL, headers=headers, json={"inputs": text})
-        response.raise_for_status()
-        return response.json()[0]  # Single embedding vector
-    except requests.RequestException as e:
-        print(f"Embedding API error: {e}")
-        return []
+def get_embeddings_batch(texts, batch_size=20):
+    """Get sentence embeddings in batches from Hugging Face API"""
+    all_embeddings = []
+    
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i+batch_size]
+        try:
+            response = requests.post(HUGGINGFACE_API_URL, headers=headers, json={"inputs": batch})
+            response.raise_for_status()
+            
+            batch_embeddings = response.json()
+            all_embeddings.extend(batch_embeddings)
+            
+            print(f"Processed batch {i//batch_size + 1}/{(len(texts) + batch_size - 1)//batch_size}")
+        except requests.RequestException as e:
+            print(f"Embedding API error in batch {i//batch_size + 1}: {e}")
+            # Add empty embeddings as fallback
+            all_embeddings.extend([[] for _ in range(len(batch))])
+    
+    return all_embeddings
 
 
 def cosine_similarity(vec1, vec2):
@@ -84,7 +92,7 @@ def fetch_books_from_google_api(query):
 
             param_list_title = {
                 "q": query_string_title,
-                "maxResults": 5,
+                "maxResults": 3,
                 "startIndex": start_index,
                 "key": api_key
             }
@@ -177,13 +185,21 @@ def fetch_books_from_google_api_using_id(id):
 
 
 def extract_keywords(text, n=7):
-    doc = nlp(text)
-    words = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
+    if nlp:
+        # Use spaCy if available
+        doc = nlp(text)
+        words = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
 
-    vectorizer = TfidfVectorizer(stop_words='english')
-    tfIdf_matrix = vectorizer.fit_transform([" ".join(words)])
-    feature_arr = vectorizer.get_feature_names_out()
-    tfIdf_sorting = tfIdf_matrix.toarray().flatten().argsort()[::-1]
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfIdf_matrix = vectorizer.fit_transform([" ".join(words)])
+        feature_arr = vectorizer.get_feature_names_out()
+        tfIdf_sorting = tfIdf_matrix.toarray().flatten().argsort()[::-1]
+    else:
+        # Fall back to simple TF-IDF
+        vectorizer = TfidfVectorizer(stop_words='english', max_features=n)
+        tfidf_matrix = vectorizer.fit_transform([text])
+        feature_arr = vectorizer.get_feature_names_out()
+        tfIdf_sorting = tfidf_matrix.toarray().flatten().argsort()[::-1]
 
     return [feature_arr[i] for i in tfIdf_sorting[:n]]
 
@@ -197,57 +213,72 @@ def get_collaborative_filtering_recommendations():
     if not user_ratings:
         return []
     
-    print(user_ratings)
+    # Check if we have enough ratings to do proper collaborative filtering
+    if len(user_ratings) < 10:
+        print("Not enough ratings for collaborative filtering")
+        return []
 
-    reader = Reader(rating_scale=(1, 5))
+    try:
+        reader = Reader(rating_scale=(1, 5))
+        data = Dataset.load_from_df(
+            pd.DataFrame(list(user_ratings.values("user__id", "book_id", "rating"))),
+            reader
+        )
 
-    data = Dataset.load_from_df(
-        pd.DataFrame(list(user_ratings.values("user__id", "book_id", "rating"))),
-        reader
-    )
+        # Use a smaller test set if we don't have many ratings
+        test_size = 0.2 if len(user_ratings) >= 20 else 0.1
+        train_set, test_set = train_test_split(data, test_size=test_size)
 
-    train_set, test_set = train_test_split(data, test_size=0.2)
+        model = SVD()
+        model.fit(train_set)
 
-    model = SVD()
-    model.fit(train_set)
+        predictions = model.test(test_set)
 
-    predictions = model.test(test_set)
+        book_predictions = {}
+        for uid, iid, true_r, est, _ in predictions:
+            if iid not in book_predictions:
+                book_predictions[iid] = est
+            else:
+                book_predictions[iid] += est
 
-    book_predictions = {}
+        recommended_books = sorted(book_predictions.items(), key=lambda x: x[1], reverse=True)
+        top_recommended_books = [fetch_books_from_google_api_using_id(book[0]) for book in recommended_books[:10]]
 
-    for uid, iid, true_r, est, _ in predictions:
-        if iid not in book_predictions:
-            book_predictions[iid] = est
-        else:
-            book_predictions[iid] += est
-    
-    
-    recommended_books = sorted(book_predictions.items(), key=lambda x: x[1], reverse=True)
-
-    top_recommended_books = [fetch_books_from_google_api_using_id(book[0]) for book in recommended_books[:10]]
-
-    return top_recommended_books
+        return top_recommended_books
+    except Exception as e:
+        print(f"Error in collaborative filtering: {e}")
+        return []
 
 
 # -------------------------------------
-# Rank by Embeddings using SentenceTransformer
+# Rank by Embeddings using Hugging Face API
 # -------------------------------------
 def rank_books_by_cosine_similarity(media_query, books):
-
-    book_descriptions = [book.get("description","") for book in books]
-
-    book_embeddings = model.encode(book_descriptions, convert_to_tensor=True)
-     
-    media_embedding = model.encode(media_query["description"], convert_to_tensor=True)
-
-    similarity_scores = util.pytorch_cos_sim(media_embedding, book_embeddings)
-
-    similarity_scores = similarity_scores.squeeze(0).tolist()
-
-    ranked_books = list(zip(books, similarity_scores))
+    if not books:
+        return []
     
+    book_descriptions = [book.get("description", "") for book in books]
+    texts_to_embed = book_descriptions + [media_query["description"]]
+    
+    # Get all embeddings in one batch request
+    print(f"Getting embeddings for {len(texts_to_embed)} texts...")
+    all_embeddings = get_embeddings_batch(texts_to_embed)
+    
+    if not all_embeddings or len(all_embeddings) < len(texts_to_embed):
+        print("Error getting embeddings, falling back to basic ranking")
+        return books[:min(39, len(books))]
+    
+    # Split the embeddings
+    book_embeddings = all_embeddings[:-1]
+    media_embedding = all_embeddings[-1]
+    
+    # Calculate similarity scores
+    similarity_scores = [cosine_similarity(media_embedding, book_emb) for book_emb in book_embeddings]
+    
+    # Zip books with their scores, sort, and return top books
+    ranked_books = list(zip(books, similarity_scores))
     ranked_books.sort(key=lambda x: x[1], reverse=True)
-
+    
     return [book[0] for book in ranked_books][:39]
 
 
