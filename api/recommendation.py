@@ -170,21 +170,13 @@ def fetch_books_from_google_api_using_id(id):
 
 
 def extract_keywords(text, n=7):
-    if nlp:
-        # Use spaCy if available
-        doc = nlp(text)
-        words = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
+    doc = nlp(text)
+    words = [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
 
-        vectorizer = TfidfVectorizer(stop_words='english')
-        tfIdf_matrix = vectorizer.fit_transform([" ".join(words)])
-        feature_arr = vectorizer.get_feature_names_out()
-        tfIdf_sorting = tfIdf_matrix.toarray().flatten().argsort()[::-1]
-    else:
-        # Fall back to simple TF-IDF
-        vectorizer = TfidfVectorizer(stop_words='english', max_features=n)
-        tfidf_matrix = vectorizer.fit_transform([text])
-        feature_arr = vectorizer.get_feature_names_out()
-        tfIdf_sorting = tfidf_matrix.toarray().flatten().argsort()[::-1]
+    vectorizer = TfidfVectorizer(stop_words='english')
+    tfIdf_matrix = vectorizer.fit_transform([" ".join(words)])
+    feature_arr = vectorizer.get_feature_names_out()
+    tfIdf_sorting = tfIdf_matrix.toarray().flatten().argsort()[::-1]
 
     return [feature_arr[i] for i in tfIdf_sorting[:n]]
 
@@ -198,80 +190,53 @@ def get_collaborative_filtering_recommendations():
     if not user_ratings:
         return []
     
-    # Check if we have enough ratings to do proper collaborative filtering
-    if len(user_ratings) < 10:
-        print("Not enough ratings for collaborative filtering")
-        return []
+    print(user_ratings)
 
-    try:
-        reader = Reader(rating_scale=(1, 5))
-        data = Dataset.load_from_df(
-            pd.DataFrame(list(user_ratings.values("user__id", "book_id", "rating"))),
-            reader
-        )
+    reader = Reader(rating_scale=(1, 5))
 
-        # Use a smaller test set if we don't have many ratings
-        test_size = 0.2 if len(user_ratings) >= 20 else 0.1
-        train_set, test_set = train_test_split(data, test_size=test_size)
+    data = Dataset.load_from_df(
+        pd.DataFrame(list(user_ratings.values("user__id", "book_id", "rating"))),
+        reader
+    )
 
-        model = SVD()
-        model.fit(train_set)
+    train_set, test_set = train_test_split(data, test_size=0.2)
 
-        predictions = model.test(test_set)
+    model = SVD()
+    model.fit(train_set)
 
-        book_predictions = {}
-        for uid, iid, true_r, est, _ in predictions:
-            if iid not in book_predictions:
-                book_predictions[iid] = est
-            else:
-                book_predictions[iid] += est
+    predictions = model.test(test_set)
 
-        recommended_books = sorted(book_predictions.items(), key=lambda x: x[1], reverse=True)
-        top_recommended_books = [fetch_books_from_google_api_using_id(book[0]) for book in recommended_books[:10]]
+    book_predictions = {}
 
-        return top_recommended_books
-    except Exception as e:
-        print(f"Error in collaborative filtering: {e}")
-        return []
+    for uid, iid, true_r, est, _ in predictions:
+        if iid not in book_predictions:
+            book_predictions[iid] = est
+        else:
+            book_predictions[iid] += est
+    
+    
+    recommended_books = sorted(book_predictions.items(), key=lambda x: x[1], reverse=True)
+
+    top_recommended_books = [fetch_books_from_google_api_using_id(book[0]) for book in recommended_books[:10]]
+
+    return top_recommended_books
 
 
 # -------------------------------------
 # Rank by Embeddings or TF-IDF
 # -------------------------------------
 def rank_books_by_cosine_similarity(media_query, books):
-    """Uses embeddings when available, falls back to TF-IDF"""
-    # Try to use Hugging Face embeddings
-    try:
-        book_descriptions = [book.get("description", "") for book in books]
-        
-        book_embeddings = [get_embedding(desc) for desc in book_descriptions]
-        media_embedding = get_embedding(media_query["description"])
-        
-        if media_embedding and all(book_embeddings):
-            print("Using Hugging Face embeddings for similarity")
-            similarity_scores = [cosine_similarity(media_embedding, emb) for emb in book_embeddings]
-            
-            ranked_books = list(zip(books, similarity_scores))
-            ranked_books.sort(key=lambda x: x[1], reverse=True)
-            
-            return [book[0] for book in ranked_books][:39]
-    
-    except Exception as e:
-        print(f"Error with embeddings: {e}. Falling back to TF-IDF.")
-    
-    # Fall back to TF-IDF similarity
-    print("Using TF-IDF for similarity")
     book_descriptions = [book.get("description", "") for book in books]
     
-    tfidf = TfidfVectorizer(stop_words='english')
-    tfidf_matrix = tfidf.fit_transform(book_descriptions + [media_query["description"]])
+    book_embeddings = [get_embedding(desc) for desc in book_descriptions]
+    media_embedding = get_embedding(media_query["description"])
     
-    from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine_similarity
-    similarity_scores = sklearn_cosine_similarity(tfidf_matrix[-1:], tfidf_matrix[:-1]).flatten()
+    similarity_scores = [cosine_similarity(media_embedding, emb) for emb in book_embeddings]
     
-    ranked = sorted(zip(books, similarity_scores), key=lambda x: x[1], reverse=True)
+    ranked_books = list(zip(books, similarity_scores))
+    ranked_books.sort(key=lambda x: x[1], reverse=True)
     
-    return [book for book, score in ranked][:39]
+    return [book[0] for book in ranked_books][:39]
 
 
 # -------------------------------
