@@ -21,9 +21,12 @@ load_dotenv()
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    # Fall back to TF-IDF only if spaCy model is not installed
-    print("spaCy model not found. Using TF-IDF only for keyword extraction.")
-    nlp = None
+    # If model not found, download it and load it
+    print("spaCy model not found. Downloading en_core_web_sm...")
+    import sys
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
 
 # Hugging Face API setup
 HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
