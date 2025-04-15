@@ -381,7 +381,6 @@ export default{
         },
         async logout(){
             try{
-
                 const response = await fetch(`${this.apiBaseUrl}/logout/`,
                 {    
                     method: "GET",
@@ -395,13 +394,11 @@ export default{
                     throw new Error('Failed to logout');
                 }
                 this.userStore.clearUser();
-                window.location.href = `${this.apiBaseUrl}/login`;
-
+                window.location.href = "/login/";
             }
             catch (error){
                 console.error('error logging out', error)
             }
-
         },
         backToShowList(){
             this.showList = true;
