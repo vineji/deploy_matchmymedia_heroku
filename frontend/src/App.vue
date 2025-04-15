@@ -12,29 +12,30 @@ export default {
     const userStore = useUserStore();
     const apiBaseUrl = config.apiBaseUrl;
     
-    // Check if user session is valid at application startup
+    // More aggressive check for user session validity
     const validateUserSession = async () => {
-      const storedUser = localStorage.getItem('user');
-      
-      if (storedUser) {
-        try {
-          const response = await fetch(`${apiBaseUrl}/user/`, {
-            method: "GET",
-            credentials: "include"
-          });
-          
-          if (!response.ok) {
-            // If API call fails, clear the user store
-            console.log('Session invalid, clearing stored user data');
-            userStore.clearUser();
-          }
-        } catch (error) {
-          console.error('Error validating user session:', error);
+      try {
+        const response = await fetch(`${apiBaseUrl}/user/`, {
+          method: "GET",
+          credentials: "include"
+        });
+        
+        if (!response.ok) {
+          // If API call fails, clear the user store
+          console.log('Session invalid, clearing stored user data');
           userStore.clearUser();
+        } else {
+          // If successful, update the user data
+          const userData = await response.json();
+          userStore.setUser(userData.id, userData.username, userData.online_id, userData.favourite_genres);
         }
+      } catch (error) {
+        console.error('Error validating user session:', error);
+        userStore.clearUser();
       }
     };
     
+    // Always validate on app startup
     validateUserSession();
     
     return { userStore };

@@ -16,13 +16,26 @@ export const useUserStore = defineStore('userStore',{
             localStorage.setItem('user', JSON.stringify(this.$state));
         },
         loadUser(){
+            // This method is now only used for development/testing
+            // The main app uses validateUserSession instead
             const user = localStorage.getItem('user');
             if (user){
-                const parsedUser = JSON.parse(user);
-                this.user_id = parsedUser.user_id;
-                this.username = parsedUser.username;
-                this.online_id = parsedUser.online_id;
-                this.favourite_genres = parsedUser.favourite_genres;
+                try {
+                    const parsedUser = JSON.parse(user);
+                    // Only set if we have a valid user ID
+                    if (parsedUser.user_id) {
+                        this.user_id = parsedUser.user_id;
+                        this.username = parsedUser.username;
+                        this.online_id = parsedUser.online_id;
+                        this.favourite_genres = parsedUser.favourite_genres;
+                    } else {
+                        // Clear invalid data
+                        this.clearUser();
+                    }
+                } catch (e) {
+                    console.error("Error parsing user data:", e);
+                    this.clearUser();
+                }
             }
         },
         updateUsername(username){

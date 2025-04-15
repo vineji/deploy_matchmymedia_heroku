@@ -33,7 +33,7 @@
             >
                 Recommend Books
             </button>
-            <button class="login-btn" @click="redirectToLogin">{{loggedUser.online_id || 'Login'}}</button>
+            <button class="login-btn" @click="redirectToLogin">{{ userStore.user_id ? userStore.online_id : 'Login' }}</button>
         </form>
         <RecommendModal
         v-model:isVisible="isModalVisible"
@@ -174,7 +174,6 @@ export default {
     },
     setup(){
         const userStore = useUserStore();
-        userStore.loadUser();
         return {userStore};
     },
     computed: {
@@ -395,7 +394,7 @@ export default {
             }
         },
         async rateBook(rating) {
-            if (this.loggedUser.online_id == null) {
+            if (!this.userStore.user_id) {
                 window.location.href = `${this.apiBaseUrl}/login/`;
                 return;
             }
