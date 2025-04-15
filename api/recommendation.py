@@ -2,6 +2,7 @@ import requests
 import spacy
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sentence_transformers import SentenceTransformer, util
 from surprise import SVD, Dataset, Reader
 from surprise.model_selection import train_test_split
 from .models import BookRating
@@ -27,6 +28,9 @@ except OSError:
     import subprocess
     subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
+
+# Load SentenceTransformer model
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Hugging Face API setup
 HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
@@ -226,19 +230,24 @@ def get_collaborative_filtering_recommendations():
 
 
 # -------------------------------------
-# Rank by Embeddings or TF-IDF
+# Rank by Embeddings using SentenceTransformer
 # -------------------------------------
 def rank_books_by_cosine_similarity(media_query, books):
-    book_descriptions = [book.get("description", "") for book in books]
-    
-    book_embeddings = [get_embedding(desc) for desc in book_descriptions]
-    media_embedding = get_embedding(media_query["description"])
-    
-    similarity_scores = [cosine_similarity(media_embedding, emb) for emb in book_embeddings]
-    
+
+    book_descriptions = [book.get("description","") for book in books]
+
+    book_embeddings = model.encode(book_descriptions, convert_to_tensor=True)
+     
+    media_embedding = model.encode(media_query["description"], convert_to_tensor=True)
+
+    similarity_scores = util.pytorch_cos_sim(media_embedding, book_embeddings)
+
+    similarity_scores = similarity_scores.squeeze(0).tolist()
+
     ranked_books = list(zip(books, similarity_scores))
-    ranked_books.sort(key=lambda x: x[1], reverse=True)
     
+    ranked_books.sort(key=lambda x: x[1], reverse=True)
+
     return [book[0] for book in ranked_books][:39]
 
 
