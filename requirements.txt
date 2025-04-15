@@ -16,3 +16,4 @@ sentence-transformers>=2.2.2
 
 # Spacy language model
 # You'll need to run: python -m spacy download en_core_web_sm 
+# Docker deployment 2023-04-15 
